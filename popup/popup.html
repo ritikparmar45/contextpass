@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Context Passport</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-wrapper">
+        <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M12 8v8"/>
+          <path d="M9 11h6"/>
+        </svg>
+        <h1 class="logo-title">Context<span>Passport</span></h1>
+      </div>
+      <div class="version">v1.0.0</div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="app-content">
+      <!-- Status Card -->
+      <section class="card status-card">
+        <div class="status-row">
+          <span class="status-label">Active Site:</span>
+          <div class="status-badge" id="active-site-badge">
+            <span class="badge-dot"></span>
+            <span class="badge-text" id="active-site-text">Checking...</span>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="stats-row">
+          <div class="stat-box">
+            <span class="stat-number" id="msg-count">0</span>
+            <span class="stat-label">Messages Logged</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <section class="actions-section">
+        <button id="export-btn" class="btn btn-primary" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Export Context
+        </button>
+        <button id="clear-btn" class="btn btn-secondary">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            <line x1="10" y1="11" x2="10" y2="17"/>
+            <line x1="14" y1="11" x2="14" y2="17"/>
+          </svg>
+          Clear Database
+        </button>
+      </section>
+
+      <!-- Toast Feedback -->
+      <div id="toast" class="toast hidden">
+        <span class="toast-icon">✓</span>
+        <span id="toast-message" class="toast-message">Export successful!</span>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>Secure & Local context sharing</p>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

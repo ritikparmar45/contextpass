@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Context Passport",
+  "version": "1.0.0",
+  "description": "Seamlessly transfer conversation context between AI assistants.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/*",
+    "https://claude.ai/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "content/detect.js",
+        "content/capture.js",
+        "content/inject.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Context Passport"
+  }
+}
