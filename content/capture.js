@@ -132,6 +132,11 @@
     try {
       const urlId = getUrlConversationId();
       
+      // Re-initialize temporary session ID if on a new chat/draft page and it was previously cleared
+      if (!urlId && !tempSessionId) {
+        tempSessionId = `temp_${site}_${Date.now()}`;
+      }
+
       // Handle Transition: From draft (tempSessionId) to real conversation ID (urlId)
       if (urlId && tempSessionId) {
         console.log(`Context Passport: Transitioning draft session ${tempSessionId} to live ID ${urlId}`);
@@ -146,7 +151,12 @@
         }
       }
 
-      currentConversationId = urlId || tempSessionId;
+      const nextConversationId = urlId || tempSessionId;
+      if (currentConversationId !== nextConversationId) {
+        console.log(`Context Passport: Conversation ID changed from ${currentConversationId} to ${nextConversationId}. Clearing message cache.`);
+        sentMessageHashes.clear();
+        currentConversationId = nextConversationId;
+      }
 
       if (!currentConversationId) return;
 
@@ -177,7 +187,9 @@
 
         if (response && response.success) {
           sentMessageHashes.add(hash);
-          newSaves++;
+          if (!response.duplicate) {
+            newSaves++;
+          }
         }
       }
       

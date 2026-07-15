@@ -29,8 +29,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function handleMessage(request, sender) {
   switch (request.action) {
     case 'saveMessage':
-      const saved = await saveMessageToDB(request.message);
-      return { success: saved };
+      const saveResult = await saveMessageToDB(request.message);
+      return saveResult;
 
     case 'renameConversation':
       const renamed = await renameConversationInDB(request.oldId, request.newId);

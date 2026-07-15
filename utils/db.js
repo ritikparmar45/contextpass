@@ -6,7 +6,7 @@
  */
 
 const DB_NAME = 'ContextPassportDB';
-const DB_VERSION = 2; // Incremented to v2 to force schema recreation and fix missing index bugs
+const DB_VERSION = 3; // Incremented to v3 to force schema recreation and fix missing index bugs
 
 /**
  * Opens the IndexedDB database and creates object stores if needed.
@@ -59,7 +59,7 @@ function openDB() {
 /**
  * Saves a message to the IndexedDB, preventing duplicates.
  * @param {Object} message - The message to save { conversationId, site, role, content, timestamp }
- * @returns {Promise<boolean>} Resolves to true if saved, false if duplicate or error.
+ * @returns {Promise<Object>} Resolves to { success: true, duplicate: true/false } or rejects on error.
  */
 async function saveMessageToDB(message) {
   try {
@@ -82,14 +82,14 @@ async function saveMessageToDB(message) {
         );
 
         if (isDuplicate) {
-          resolve(false); // Duplicate, skip saving
+          resolve({ success: true, duplicate: true }); // Duplicate, skip saving
           return;
         }
 
         // Not duplicate, save message
         const addRequest = store.add(message);
         addRequest.onsuccess = () => {
-          resolve(true);
+          resolve({ success: true, duplicate: false });
         };
         addRequest.onerror = (e) => {
           console.error('Failed to add message:', e.target.error);
@@ -104,7 +104,7 @@ async function saveMessageToDB(message) {
     });
   } catch (error) {
     console.error('Database connection failed in saveMessageToDB:', error);
-    return false;
+    return { success: false, error: error.message };
   }
 }
 
