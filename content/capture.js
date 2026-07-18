@@ -98,18 +98,55 @@
       });
     } else if (site === 'claude') {
       // Claude messages reside in bubble containers.
-      const bubbles = document.querySelectorAll('.font-user, .font-claude, [data-testid="user-message"], [data-testid="claude-message"], [data-is-user]');
+      const bubbles = document.querySelectorAll(
+        '[data-testid="user-message"], [data-testid="claude-message"], [data-testid="assistant-message"], ' +
+        '[data-message-author="user"], [data-message-author="assistant"], ' +
+        '.font-user-message, .font-claude-message, .font-claude-response, ' +
+        '.human-message, .assistant-message, ' +
+        '.font-user, .font-claude, [data-is-user]'
+      );
       
       bubbles.forEach((bubble) => {
         let role = '';
-        if (bubble.classList.contains('font-user') || 
-            bubble.getAttribute('data-testid') === 'user-message' || 
-            bubble.getAttribute('data-is-user') === 'true') {
+        
+        // 1. Direct attribute checking (Highest priority and most robust)
+        const testId = bubble.getAttribute('data-testid');
+        const author = bubble.getAttribute('data-message-author');
+        const isUserAttr = bubble.getAttribute('data-is-user');
+        
+        if (testId === 'user-message' || author === 'user' || isUserAttr === 'true') {
           role = 'user';
-        } else if (bubble.classList.contains('font-claude') || 
-                   bubble.getAttribute('data-testid') === 'claude-message' || 
-                   bubble.getAttribute('data-is-user') === 'false') {
+        } else if (
+          testId === 'claude-message' || 
+          testId === 'assistant-message' || 
+          author === 'assistant' || 
+          isUserAttr === 'false'
+        ) {
           role = 'assistant';
+        }
+        
+        // 2. Semantic class checking (Medium priority)
+        if (!role) {
+          const classes = bubble.classList;
+          if (classes.contains('font-user-message') || classes.contains('human-message')) {
+            role = 'user';
+          } else if (
+            classes.contains('font-claude-message') || 
+            classes.contains('font-claude-response') || 
+            classes.contains('assistant-message')
+          ) {
+            role = 'assistant';
+          }
+        }
+        
+        // 3. Fallback CSS checking (Lowest priority, safe against font-family overrides)
+        if (!role) {
+          const classes = bubble.classList;
+          if (classes.contains('font-user') && !classes.contains('font-claude')) {
+            role = 'user';
+          } else if (classes.contains('font-claude') && !classes.contains('font-user')) {
+            role = 'assistant';
+          }
         }
 
         if (!role) return;

@@ -10,43 +10,43 @@
  * @param {string} text 
  * @returns {string} The compressed text.
  */
-function compressMessageText(text) {
+function compressMessageText(text, maxLength = 800) {
   if (!text) return '';
   
-  // 1. Split into lines and filter out short/numeric/tabular noise
-  const lines = text.split('\n')
+  // Clean up typical chat platform UI noise (e.g. Copy code, Share, etc.)
+  let cleaned = text
+    .split('\n')
     .map(line => line.trim())
     .filter(line => {
-      if (line.length === 0) return false;
-      // Filter out lines that are very short (less than 4 characters) and are not standard short words
-      if (line.length < 4 && !/^[a-zA-Z]{2,3}$/.test(line)) return false;
-      // Filter out lines that only contain numbers, temperatures, or layout symbols
-      if (/^[0-9°C\/F\-\+\s:,]+$/i.test(line)) return false;
+      if (line.length === 0) return true; // keep empty lines for structure
+      if (/^(Copy|Copy code|Share|Edit|Regenerate|Retry|Thumbs up|Thumbs down)$/i.test(line)) return false;
       return true;
-    });
+    })
+    .join('\n')
+    .trim();
 
-  if (lines.length === 0) return 'Content summarized to general references.';
-
-  // 2. Remove consecutive duplicate lines
-  const uniqueLines = [];
-  lines.forEach((line, index) => {
-    if (index === 0 || line !== lines[index - 1]) {
-      uniqueLines.push(line);
-    }
-  });
-
-  const cleanedText = uniqueLines.join(' ');
-
-  // 3. Sentence extraction
-  // Split by standard punctuation
-  const sentences = cleanedText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
-  
-  if (sentences.length <= 3) {
-    return cleanedText;
+  if (cleaned.length <= maxLength) {
+    return cleaned;
   }
 
-  // Take the first two sentences and the last sentence to form a cohesive summary
-  return `${sentences[0]} ${sentences[1]} [...] ${sentences[sentences.length - 1]}`;
+  // Gracefully truncate at word/sentence boundary
+  let truncated = cleaned.substring(0, maxLength);
+  const lastDot = truncated.lastIndexOf('.');
+  const lastQuestion = truncated.lastIndexOf('?');
+  const lastExclamation = truncated.lastIndexOf('!');
+  const lastNewline = truncated.lastIndexOf('\n');
+  
+  const cutIndex = Math.max(lastDot, lastQuestion, lastExclamation, lastNewline);
+  if (cutIndex > maxLength * 0.7) {
+    truncated = truncated.substring(0, cutIndex + 1);
+  } else {
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > 0) {
+      truncated = truncated.substring(0, lastSpace);
+    }
+  }
+
+  return truncated.trim() + '\n\n*... [Truncated for conciseness]*';
 }
 
 /**
@@ -63,33 +63,54 @@ function generateLocalSummary(messages) {
   const userMessages = messages.filter(m => m.role === 'user');
   const assistantMessages = messages.filter(m => m.role === 'assistant');
 
-  // 1. Identify the Problem / Goal
-  // Heuristic: Use the user's very first message as the primary goal/problem statement.
+  // 1. Identify Goal / Problem with Greeting Filtering
   let problem = 'Not explicitly defined.';
   if (userMessages.length > 0) {
-    problem = compressMessageText(userMessages[0].content.trim());
+    let firstSubstantialMsg = '';
+    const greetingsRegex = /^(hi|hello|hey|greetings|good morning|good afternoon|test|can you help|yo|dear)/i;
+    
+    for (let i = 0; i < Math.min(userMessages.length, 3); i++) {
+      const content = userMessages[i].content.trim();
+      if (!greetingsRegex.test(content) && content.length > 15) {
+        firstSubstantialMsg = content;
+        break;
+      }
+    }
+    
+    if (!firstSubstantialMsg) {
+      firstSubstantialMsg = userMessages[0].content.trim();
+    }
+    
+    problem = compressMessageText(firstSubstantialMsg, 600);
   }
 
   // 2. Identify Progress
-  // Heuristic: List the size of the exchange and key topics based on message count.
   const totalTurns = messages.length;
   let progress = `Conversation contains ${totalTurns} total messages (${userMessages.length} user prompts, ${assistantMessages.length} assistant responses).`;
   
-  // 3. Identify Important Decisions / Tech Constraints
-  // Heuristic: Scan message history for keywords like "decided", "prefer", "use", "need", "should", "must", or code references.
+  // 3. Identify Decisions with Broader Keywords and Sentence Preservation
   const decisions = [];
   const technologies = new Set();
   
-  // Tech stack patterns to scan for
   const techKeywords = [
     'javascript', 'typescript', 'react', 'vue', 'angular', 'svelte', 'nextjs', 'vite',
     'tailwind', 'css', 'html', 'python', 'django', 'flask', 'fastapi', 'node', 'express',
     'postgres', 'mongodb', 'sqlite', 'chrome extension', 'manifest v3', 'indexeddb', 'rust', 'go'
   ];
 
-  // Extract code blocks from the messages history (Option 1: Raw Code Preservation)
   const rawCodeBlocks = [];
   const codeBlockRegex = /```[a-zA-Z]*\n([\s\S]*?)\n```/g;
+
+  const decisionKeywords = [
+    /we decided to\s+([^.\n]+)/i,
+    /let's (?:use|go with|do)\s+([^.\n]+)/i,
+    /we will (?:use|implement|setup|need to)\s+([^.\n]+)/i,
+    /i prefer\s+([^.\n]+)/i,
+    /we're going to\s+([^.\n]+)/i,
+    /chosen to\s+([^.\n]+)/i,
+    /preferred stack is\s+([^.\n]+)/i,
+    /instead of\s+([^,\n.]+),\s*(?:we will|let's)\s+([^.\n]+)/i
+  ];
 
   messages.forEach(msg => {
     const textLower = msg.content.toLowerCase();
@@ -101,11 +122,22 @@ function generateLocalSummary(messages) {
       }
     });
 
-    // Detect explicit decision keywords
-    const decisionMatches = msg.content.match(/(?:we decided to|we will use|implementing|using|preference is for)\s+([^.\n]+)/i);
-    if (decisionMatches && decisionMatches[1]) {
-      decisions.push(decisionMatches[1].trim());
-    }
+    // Detect decisions sentence-by-sentence to keep sentence context
+    const sentences = msg.content.split(/(?<=[.!?])\s+/);
+    sentences.forEach(sentence => {
+      for (const regex of decisionKeywords) {
+        const match = sentence.match(regex);
+        if (match) {
+          let extracted = sentence.trim().replace(/\s+/g, ' ');
+          // Capitalize first letter
+          extracted = extracted.charAt(0).toUpperCase() + extracted.slice(1);
+          if (extracted.length >= 10 && extracted.length < 180 && !decisions.includes(extracted)) {
+            decisions.push(extracted);
+          }
+          break;
+        }
+      }
+    });
 
     // Extract all raw code blocks
     let match;
@@ -122,16 +154,16 @@ function generateLocalSummary(messages) {
 
   let decisionsSection = '';
   if (decisions.length > 0) {
-    decisionsSection = decisions.map(d => `- Decided to use/do: ${d}`).join('\n');
+    decisionsSection = decisions.map(d => `- ${d}`).join('\n');
   } else {
     decisionsSection = '- Kept technical setup focused on default parameters.\n- No explicitly stated decisions found.';
   }
 
-  // 4. Identify Next Steps (Compressed last message)
+  // 4. Identify Next Steps (Compressed last message, preserving lists/code block alignment)
   let nextStep = 'Continue the conversation where it left off.';
   if (messages.length > 1) {
     const lastMsg = messages[messages.length - 1];
-    nextStep = compressMessageText(lastMsg.content.trim());
+    nextStep = compressMessageText(lastMsg.content.trim(), 800);
   }
 
   // 5. User Preferences & Tech Stack
