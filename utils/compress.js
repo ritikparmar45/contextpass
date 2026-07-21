@@ -84,11 +84,80 @@ function generateLocalSummary(messages) {
     problem = compressMessageText(firstSubstantialMsg, 600);
   }
 
-  // 2. Identify Progress
+  // 2. Extract Key Entities & Topics (capitalized phrases)
+  const entities = new Set();
+  const entityRegex = /\b([A-Z][a-zA-Z0-9']+(?:\s+[A-Z][a-zA-Z0-9']+)+)\b/g;
+  const commonPhrasesToExclude = new Set([
+    'The User', 'The Assistant', 'Chrome Extension', 'Manifest V3', 'IndexedDB', 'Tailwind CSS',
+    'Google Chrome', 'New Chat', 'Web Page', 'Service Worker'
+  ]);
+  
+  messages.forEach(msg => {
+    let match;
+    entityRegex.lastIndex = 0;
+    while ((match = entityRegex.exec(msg.content)) !== null) {
+      const phrase = match[1].trim();
+      if (phrase.length > 3 && phrase.length < 50 && !commonPhrasesToExclude.has(phrase)) {
+        const firstWord = phrase.split(' ')[0].toLowerCase();
+        if (!['i', 'we', 'you', 'he', 'she', 'they', 'it', 'this', 'that', 'there', 'here', 'first', 'second', 'then', 'now', 'if', 'when', 'the', 'a', 'an', 'our', 'my', 'your', 'his', 'her', 'their', 'india', 'jaise'].includes(firstWord)) {
+          entities.add(phrase);
+        }
+      }
+    }
+  });
+
+  const sortedEntities = Array.from(entities).sort((a, b) => b.length - a.length);
+  const filteredEntities = [];
+  sortedEntities.forEach(ent => {
+    if (!filteredEntities.some(existing => existing.includes(ent))) {
+      filteredEntities.push(ent);
+    }
+  });
+
+  let entitiesSection = '';
+  if (filteredEntities.length > 0) {
+    entitiesSection = filteredEntities.map(e => `- **${e}**`).join('\n');
+  } else {
+    entitiesSection = '- No major specific entities or projects detected.';
+  }
+
+  // 3. Extract Active Questions / Requests
+  const questions = [];
+  const lastMessages = messages.slice(-3); // Look at last 3 messages
+  const hindiQuestionKeywords = ['kya', 'kaise', 'bta', 'konsa', 'opportunity', 'project', 'konse', 'kab', 'kidhar'];
+
+  lastMessages.forEach(msg => {
+    if (msg.role === 'user') {
+      const content = msg.content;
+      const lines = content.split(/(?:[.?!\n]+)/);
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed.length > 10 && trimmed.length < 200) {
+          const lower = trimmed.toLowerCase();
+          const hasHindiKeyword = hindiQuestionKeywords.some(kw => lower.includes(kw));
+          const hasQuestionMark = trimmed.includes('?');
+          
+          if (hasQuestionMark || hasHindiKeyword || lower.startsWith('q:') || lower.startsWith('bhai ')) {
+            if (!questions.includes(trimmed)) {
+              questions.push(trimmed);
+            }
+          }
+        }
+      });
+    }
+  });
+
+  let questionsSection = '';
+  if (questions.length > 0) {
+    questionsSection = questions.map(q => `- ${q}`).join('\n');
+  } else {
+    questionsSection = '- No active pending questions found in the latest turns.';
+  }
+
+  // 4. Progress and Tech Stack
   const totalTurns = messages.length;
   let progress = `Conversation contains ${totalTurns} total messages (${userMessages.length} user prompts, ${assistantMessages.length} assistant responses).`;
   
-  // 3. Identify Decisions with Broader Keywords and Sentence Preservation
   const decisions = [];
   const technologies = new Set();
   
@@ -159,19 +228,19 @@ function generateLocalSummary(messages) {
     decisionsSection = '- Kept technical setup focused on default parameters.\n- No explicitly stated decisions found.';
   }
 
-  // 4. Identify Next Steps (Compressed last message, preserving lists/code block alignment)
+  // 5. Identify Next Steps (Compressed last message, preserving lists/code block alignment)
   let nextStep = 'Continue the conversation where it left off.';
   if (messages.length > 1) {
     const lastMsg = messages[messages.length - 1];
     nextStep = compressMessageText(lastMsg.content.trim(), 800);
   }
 
-  // 5. User Preferences & Tech Stack
+  // 6. User Preferences & Tech Stack
   let techStackString = technologies.size > 0 
     ? Array.from(technologies).join(', ') 
     : 'Not explicitly specified.';
 
-  // 6. Build Code Block Section
+  // 7. Build Code Block Section
   let codeSection = '';
   if (rawCodeBlocks.length > 0) {
     // Keep raw code blocks completely un-truncated for accurate reconstruction
@@ -188,19 +257,25 @@ function generateLocalSummary(messages) {
 #### 1. Problem / Goal
 > ${problem}
 
-#### 2. Progress
+#### 2. Key Entities & Discussed Topics
+${entitiesSection}
+
+#### 3. Active Questions & Requests
+${questionsSection}
+
+#### 4. Progress & Technical Stack
 - ${progress}
 - Key Tech Detected: ${techStackString}
 
-#### 3. Important Decisions
+#### 5. Important Decisions
 ${decisionsSection}
 
-#### 4. Next Step / Current Status
+#### 6. Next Step / Current Status
 \`\`\`text
 ${nextStep}
 \`\`\`
 
-#### 5. User Context & Preferences
+#### 7. User Context & Preferences
 - Preferred Tech Stack: ${techStackString}
 - Please resume assistance based on the details above.
 ${codeSection}
